@@ -14,13 +14,17 @@ const signUp = async (req, res, next) => {
     try {
         //body validation
         const validationResult = await signUpOtpSchema.validateAsync(req.body);
+
         console.log(validationResult);
 
         const user = await User.findOne({ number: validationResult.number });
+        console.log(user);
+
         if (user) {
             throw createError.Conflict(`${validationResult.number} is already registered.`);
             //redirect to user sign-in route
         }
+
         const OTP = otpGenerator.generate(6, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false });
         //Note: otp generator generates 6 digit 'string' values.
 
@@ -83,11 +87,20 @@ const signUp_verifyOtp = async (req, res, next) => {
 };
 //checking wether user exists or not.
 //otp generation and sending otp to user's mobile number.
+
+//Make sure your middleware is ordered properly, and if you're using Postman 
+// setting the "Content-Type" header to "application/json" might help.
+//If testing the API using POSTMAN, ensure that 'Content-Length' header is active and set to <calculated when request is sent>.
+
 const signIn = async (req, res, next) => {
     try {
+        console.log(1);
         const validationResult = await signInOtpSchema.validateAsync(req.body);
+        console.log(2);
         const user = await User.findOne({ number: validationResult.number });
-        if (user) {
+        console.log(3);
+        console.log(user);
+        if (user) { //included ! sign here, check reconfirm.
             throw createError.NotFound('User does not exist, kindly register.');
         }
 
@@ -98,14 +111,17 @@ const signIn = async (req, res, next) => {
             number: validationResult.number,
             otp: OTP
         });
+
         const salt = await bcrypt.genSalt(10);
         otp.otp = await bcrypt.hash(otp.otp, salt);
         const result = await otp.save();
         console.log(result);
         return res.status(200).json({ message: "Otp sent successfully " });
+        
     }
     catch (error) {
         if (error.isJoi === true) error.status = 422; //validation error
+        
         next(error);
     }
 };

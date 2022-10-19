@@ -3,7 +3,7 @@ const app = express();
 const userRouter = require('./Routers/userRouter');
 const morgan = require('morgan');
 const httpErrors = require('http-errors');
-require('./helpers/init_redis');
+
 
 app.use(morgan('dev')) //logging
 
