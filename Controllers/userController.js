@@ -5,7 +5,7 @@ const otpGenerator = require('otp-generator');
 const createError = require('http-errors');
 const { User } = require('../Models/userModel');
 const { Otp } = require('../Models/otpModel');
-const {  signUpOtpSchema, signUpOtpVerifySchema, signInOtpSchema, signInOtpVerifySchema } = require('../helpers/joi_validator.js');
+const { signUpOtpSchema, signUpOtpVerifySchema, signInOtpSchema, signInOtpVerifySchema } = require('../helpers/joi_validator.js');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../helpers/jwt_helper');
 
 
@@ -64,14 +64,22 @@ const signUp_verifyOtp = async (req, res, next) => {
         if (rightOtpFind.number === otpValidationResult.number && validUser) {
             const user = new User(_.pick(otpValidationResult, ["number", "name", "place"]));
             const accessToken = await signAccessToken(user);
+            const refreshToken = await signRefreshToken(user);
             const result = await user.save();
             const OTPDelete = await Otp.deleteMany({
                 number: rightOtpFind.number
             });
+
+            //res.header('Authorization', 'Bearer '+ accessToken);    // set access-token in header
+            // save refresh token in cookie with httpsOnly property.
+            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
+
             return res.status(200).json({
                 message: "User Registration Successfull!",
                 token: accessToken,
-                data: result
+                refreshToken: refreshToken,
+                user: result
             });
         } else {
             const error = new Error("Wrong OTP Entered");
@@ -90,15 +98,13 @@ const signUp_verifyOtp = async (req, res, next) => {
 
 //Make sure your middleware is ordered properly, and if you're using Postman 
 // setting the "Content-Type" header to "application/json" might help.
+
 //If testing the API using POSTMAN, ensure that 'Content-Length' header is active and set to <calculated when request is sent>.
 
 const signIn = async (req, res, next) => {
     try {
-        console.log(1);
         const validationResult = await signInOtpSchema.validateAsync(req.body);
-        console.log(2);
         const user = await User.findOne({ number: validationResult.number });
-        console.log(3);
         console.log(user);
         if (user) { //included ! sign here, check reconfirm.
             throw createError.NotFound('User does not exist, kindly register.');
@@ -117,9 +123,10 @@ const signIn = async (req, res, next) => {
         const result = await otp.save();
         console.log(result);
         return res.status(200).json({ message: "Otp sent successfully " });
-        
+
     }
     catch (error) {
+
         if (error.isJoi === true) error.status = 422; //validation error
         
         next(error);
@@ -149,6 +156,10 @@ const signIn_verifyOtp = async (req, res, next) => {
             const OTPDelete = await Otp.deleteMany({
                 number: rightOtpFind.number
             });
+            //res.header('Authorization', 'Bearer '+ accessToken);    // set access-token in header
+            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
+
             return res.status(200).json({
                 message: "login Successfull!",
                 accessToken,
@@ -166,28 +177,54 @@ const signIn_verifyOtp = async (req, res, next) => {
 
 }
 
-const refresh_token = async (req, res, next) => {
+const refresh = async (req, res, next) => {
     try {
-        const { refreshToken } = req.body;
+        const cookies = req.cookies;
+        const refreshToken = cookies.refreshToken;
         if (!refreshToken) throw createError.BadRequest();
         const user = await verifyRefreshToken(refreshToken); //resolves user
 
         const accessToken = await signAccessToken(user);
-        const refToken = await signRefreshToken(user);
-        res.json({ accessToken: accessToken, refreshToken: refToken });
+        // const refToken = await signRefreshToken(user); //no new refresh token generation
+
+        //clear expired access-token
+        res.clearCookie('accessToken');
+
+        //save new access-token generated        
+        res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+        
+        res.json({ accessToken: accessToken, refreshToken: refreshToken });
     } catch (error) {
         next(error)
     }
 }
-const protectedRoute = async (req, res, next) => {
-    res.status(200).json({ message: "This is protected route" });
+
+const logout = async(req, res, next) =>{
+    
+    res.clearCookie('accessToken', {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+    res.clearCookie('refreshToken', {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+    //add secure:true in option for production server.
+
+    res.json({message: "Logout successful."})
 }
+//Note: verifyAccessToken function can handle route protection.
+
+// const protectedRoute = async (req, res, next) => {
+
+//     // let token = req.headers['x-access-token'] || req.headers['authorization'];
+//     //     if(token.startwith( ('Bearer '))){
+//     //         token = token. splice(7, token. length);
+//     //     }
+
+//     res.status(200).json({ message: "This is protected route" });
+// }
+
 
 module.exports = {
     signUp,
     signUp_verifyOtp,
     signIn,
     signIn_verifyOtp,
-    protectedRoute,
-    refresh_token
+    refresh,
+    logout
 }

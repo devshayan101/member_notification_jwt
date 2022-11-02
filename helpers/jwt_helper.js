@@ -12,9 +12,9 @@ const signAccessToken = (user) => {
         };
         const JWT_SECRET = process.env.JWT_SECRET_KEY;
         const options = {
-            expiresIn: '1h',
+            expiresIn: '2m', //2mins
             //issuer: 'https://www.google.com',
-            audience: user
+            audience: user.toString()
         };
         JWT.sign(payload, JWT_SECRET, options, (err, token) => {
             if (err) {
@@ -33,6 +33,7 @@ const verifyAccessToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const bearerToken = authHeader.split(" ");
     const token = bearerToken[1];
+
     JWT.verify(token, process.env.JWT_SECRET_KEY, (err, payload) => {
         if (err) {
             if (err.name === 'JsonWebTokenError') return next(createError.Unauthorized())
@@ -56,7 +57,7 @@ const signRefreshToken = (user) => {
         const options = {
             expiresIn: '1d',
             //issuer: 'https://www.google.com',
-            audience: user
+            audience: user.toString()
         };
         JWT.sign(payload, JWT_SECRET, options, (err, token) => {
             if (err) {

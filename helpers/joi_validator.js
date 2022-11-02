@@ -13,7 +13,7 @@ const signUpOtpVerifySchema = Joi.object({
     name: Joi.string().lowercase().alphanum().required(),
     number: Joi.number().required(),
     place: Joi.string().lowercase().alphanum().required(),
-    otp: Joi.string().lowercase().alphanum().required()
+    otp: Joi.string().lowercase().alphanum().required() // data and hash must be strings. This cant be number only string for hashing.
 });
 
 //signin-otp generation
