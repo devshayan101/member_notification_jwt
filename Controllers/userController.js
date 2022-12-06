@@ -16,19 +16,19 @@ const signUp = async (req, res, next) => {
         const validationResult = await signUpOtpSchema.validateAsync(req.body);
 
         console.log(validationResult);
-
-        const user = await User.findOne({ number: validationResult.number });
-        console.log(user);
+        const number = `${validationResult.code}${validationResult.number}`;
+        console.log('number:',number);
+        const user = await User.findOne({ number: number });
+        console.log("user:",user);
 
         if (user) {
-            throw createError.Conflict(`${validationResult.number} is already registered.`);
+            throw createError.Conflict(`${number} is already registered.`);
             //redirect to user sign-in route
         }
 
         const OTP = otpGenerator.generate(6, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false });
         //Note: otp generator generates 6 digit 'string' values.
 
-        const number = validationResult.number;
         console.log(OTP);
         const otp = new Otp({
             number: number,
@@ -53,20 +53,35 @@ const signUp_verifyOtp = async (req, res, next) => {
     try {
         let otpValidationResult = await signUpOtpVerifySchema.validateAsync(req.body);
         console.log('otpValidationResult:', otpValidationResult);
-        const otpHolder = await Otp.find({ number: otpValidationResult.number });
+
+        const number = `${otpValidationResult.code}${otpValidationResult.number}`;
+        
+        const validatedData = {
+            number: number,
+            name: otpValidationResult.name,
+            place : otpValidationResult.place,
+            otp: otpValidationResult.otp
+        }
+
+        const otpHolder = await Otp.find({ number: number });
         if (otpHolder.length === 0) {
             return res.status(400).json({ message: 'OTP not generated' });
         }
         const rightOtpFind = otpHolder[otpHolder.length - 1];
+        console.log('rightOtpFind:', rightOtpFind);
+        const validUser = await bcrypt.compare(validatedData.otp, rightOtpFind.otp);
+        console.log('validUser:', validUser);
 
-        const validUser = await bcrypt.compare(otpValidationResult.otp, rightOtpFind.otp);
-
-        if (rightOtpFind.number === otpValidationResult.number && validUser) {
-            let user = new User(_.pick(otpValidationResult, ["number", "name", "place"]));
-            const result = await user.save();
-            user = user.toString();
+        if (rightOtpFind.number == number && validUser) {
+            let user = _.pick(validatedData, ["number", "name", "place"]);
+            user = JSON.stringify(user);
             const accessToken = await signAccessToken(user);
             const refreshToken = await signRefreshToken(user);
+
+            user = JSON.parse(user);
+            user = new User(user);
+            const result = await user.save();
+
             const OTPDelete = await Otp.deleteMany({
                 number: rightOtpFind.number
             });
@@ -107,7 +122,10 @@ const signIn = async (req, res, next) => {
 
     try {
         const validationResult = await signInOtpSchema.validateAsync(req.body);
-        const user = await User.findOne({ number: validationResult.number });
+        const number = `${validationResult.code}${validationResult.number}`;
+
+        
+        const user = await User.findOne({ number: number });
         console.log(user);
         if (user==null) { 
             throw createError.NotFound('User does not exist, kindly register.');
@@ -117,7 +135,7 @@ const signIn = async (req, res, next) => {
         console.log(OTP);
 
         const otp = new Otp({
-            number: validationResult.number,
+            number: number,
             otp: OTP
         });
 
@@ -139,22 +157,23 @@ const signIn = async (req, res, next) => {
 const signIn_verifyOtp = async (req, res, next) => {
     try {
         const validationResult = await signInOtpVerifySchema.validateAsync(req.body);
-        const otpHolder = await Otp.find({ number: validationResult.number });
+        const number = `${validationResult.code}${validationResult.number}`;
+
+        const otpHolder = await Otp.find({ number: number });
         if (otpHolder.length === 0) {
             throw createError.NotFound('OTP not generated');
             //return res.status(400).send('Invalid OTP');
         }
         const rightOtpFind = otpHolder[otpHolder.length - 1];
+        console.log("rightOtpFind:",rightOtpFind);
         const validUser = await bcrypt.compare(validationResult.otp, rightOtpFind.otp);
 
-        if (rightOtpFind.number === validationResult.number && validUser) {
+        if (rightOtpFind.number === number && validUser) {
 
             // jwt_verify here
 
             //fetch 'name' from 'number' from database
-            const userNumber = req.body.number;
-            console.log('userNumber:', userNumber);
-            const userData = await User.findOne({number: userNumber});
+            const userData = await User.findOne({number: number});
             console.log('userData:', userData);
             let user = _.pick(userData, ['number', 'name', 'place']);
             user = JSON.stringify(user);
