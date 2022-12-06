@@ -9,8 +9,9 @@ const membersSchema = new Schema({
         type: String,
         required: true
     },
-    place: {
-        type: String
+    place:{
+        type:String,
+
     },
     amount:{
         type: Number,
@@ -18,4 +19,4 @@ const membersSchema = new Schema({
     }
 }, { timestamps: true });
 
-module.exports.Member = model('Member', membersSchema);
+module.exports.MemberDonation = model('MemberDonation', membersSchema);

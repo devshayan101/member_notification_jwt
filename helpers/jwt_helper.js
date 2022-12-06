@@ -6,15 +6,16 @@ const { string } = require('joi');
 const signAccessToken = (user) => {
     return new Promise((resolve, reject) => {
         const payload = {
-            // name: user.name,
-            number: user.number,
-            //place: user.place
+            name: user.name,
+            number : user.number,
+            place: user.place
         };
         const JWT_SECRET = process.env.JWT_SECRET_KEY;
         const options = {
-            expiresIn: '2m', //2mins
+            expiresIn: '10m', //10mins 
             //issuer: 'https://www.google.com',
-            audience: user.toString()
+            audience: 'dash',
+            subject: user
         };
         JWT.sign(payload, JWT_SECRET, options, (err, token) => {
             if (err) {

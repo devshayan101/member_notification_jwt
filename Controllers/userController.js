@@ -52,7 +52,7 @@ const signUp = async (req, res, next) => {
 const signUp_verifyOtp = async (req, res, next) => {
     try {
         let otpValidationResult = await signUpOtpVerifySchema.validateAsync(req.body);
-        console.log(otpValidationResult);
+        console.log('otpValidationResult:', otpValidationResult);
         const otpHolder = await Otp.find({ number: otpValidationResult.number });
         if (otpHolder.length === 0) {
             return res.status(400).json({ message: 'OTP not generated' });
@@ -62,10 +62,11 @@ const signUp_verifyOtp = async (req, res, next) => {
         const validUser = await bcrypt.compare(otpValidationResult.otp, rightOtpFind.otp);
 
         if (rightOtpFind.number === otpValidationResult.number && validUser) {
-            const user = new User(_.pick(otpValidationResult, ["number", "name", "place"]));
+            let user = new User(_.pick(otpValidationResult, ["number", "name", "place"]));
+            const result = await user.save();
+            user = user.toString();
             const accessToken = await signAccessToken(user);
             const refreshToken = await signRefreshToken(user);
-            const result = await user.save();
             const OTPDelete = await Otp.deleteMany({
                 number: rightOtpFind.number
             });
@@ -102,11 +103,13 @@ const signUp_verifyOtp = async (req, res, next) => {
 //If testing the API using POSTMAN, ensure that 'Content-Length' header is active and set to <calculated when request is sent>.
 
 const signIn = async (req, res, next) => {
+    //check if user is already loggedin or not. 
+
     try {
         const validationResult = await signInOtpSchema.validateAsync(req.body);
         const user = await User.findOne({ number: validationResult.number });
         console.log(user);
-        if (user) { //included ! sign here, check reconfirm.
+        if (user==null) { 
             throw createError.NotFound('User does not exist, kindly register.');
         }
 
@@ -128,7 +131,6 @@ const signIn = async (req, res, next) => {
     catch (error) {
 
         if (error.isJoi === true) error.status = 422; //validation error
-        
         next(error);
     }
 };
@@ -148,8 +150,20 @@ const signIn_verifyOtp = async (req, res, next) => {
         if (rightOtpFind.number === validationResult.number && validUser) {
 
             // jwt_verify here
-            let user = new User(_.pick(req.body, ["number"]));
-            user = user.toString();
+
+            //fetch 'name' from 'number' from database
+            const userNumber = req.body.number;
+            console.log('userNumber:', userNumber);
+            const userData = await User.findOne({number: userNumber});
+            console.log('userData:', userData);
+            let user = _.pick(userData, ['number', 'name', 'place']);
+            user = JSON.stringify(user);
+            //added name, number and place to access-token.
+            //remove _id: key-value from access-token
+            console.log('user:', user);
+            
+
+
             const accessToken = await signAccessToken(user);
             const refreshToken = await signRefreshToken(user);
             //const result = await user.save(); //data for logged in user//change collection name
@@ -157,14 +171,14 @@ const signIn_verifyOtp = async (req, res, next) => {
                 number: rightOtpFind.number
             });
             //res.header('Authorization', 'Bearer '+ accessToken);    // set access-token in header
-            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
+            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000}); 
             res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
 
             return res.status(200).json({
                 message: "login Successfull!",
                 accessToken,
                 refreshToken,
-                data: user
+                userdata: user
             });
         } else {
             return res.status(400).json({ message: "Your OTP is wrong!" })
@@ -200,13 +214,22 @@ const refresh = async (req, res, next) => {
 }
 
 const logout = async(req, res, next) =>{
-    
+    //check if accessToken & refreshToken cookies are present.
+    //if not give message: already loggedout.
+    const cookies = req.cookies;
+    const accessToken = cookies.accessToken;
+    const refreshToken = cookies.refreshToken;
+    if(!accessToken && !refreshToken){
+        res.json({message:"Already Logged-out."})
+        return
+    }
     res.clearCookie('accessToken', {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
     res.clearCookie('refreshToken', {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
     //add secure:true in option for production server.
 
     res.json({message: "Logout successful."})
 }
+
 //Note: verifyAccessToken function can handle route protection.
 
 // const protectedRoute = async (req, res, next) => {

@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const userRouter = require('./Routers/userRouter');
 const screenRouter = require('./Routers/screenRouter')
+const routeAuth = require('./helpers/routeAuth')
 const morgan = require('morgan');
 const httpErrors = require('http-errors');
 const cookieParser = require('cookie-parser');

@@ -1,9 +1,10 @@
 const router = require('express').Router();
-const { verifyAccessToken } = require('../helpers/jwt_helper');
-const {test} = require('../Controllers/contributionController')
+const {memberDonationDataSavePost} = require('../Controllers/memberDonateController')
 const {routeAuth} = require('../helpers/routeAuth')
 
-router.route('/donations').get(routeAuth, test);
-
+router.route('/membership-donation').post(routeAuth, memberDonationDataSavePost);
+router.route('/test').get(memberDonationDataSavePost);
+// router.route('/profile').get(routeAuth, 'transactionHistory');
+// router.route('/home').get('moto+causes')
 
 module.exports = router;
