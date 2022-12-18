@@ -7,6 +7,15 @@ const morgan = require('morgan');
 const httpErrors = require('http-errors');
 const cookieParser = require('cookie-parser');
 const expressLayouts = require('express-ejs-layouts');
+const cors = require('cors');
+
+// CORS configuration
+const corsOptions = {
+    origin: 'http://localhost:3000',
+    credentials: true
+}
+
+app.use(cors(corsOptions));
 
 app.use(morgan('dev')) //logging
 

@@ -6,7 +6,11 @@ const createError = require('http-errors');
 const { User } = require('../Models/userModel');
 const { Otp } = require('../Models/otpModel');
 const { signUpOtpSchema, signUpOtpVerifySchema, signInOtpSchema, signInOtpVerifySchema } = require('../helpers/joi_validator.js');
-const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../helpers/jwt_helper');
+const { signAccessToken, signRefreshToken, verifyRefreshToken, signTempAccessToken, verifyTempToken } = require('../helpers/jwt_helper');
+const jwt = require('jsonwebtoken');
+
+    // res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
+    //add secure:true in option for production server.
 
 
 const signUp = async (req, res, next) => {
@@ -30,6 +34,7 @@ const signUp = async (req, res, next) => {
         //Note: otp generator generates 6 digit 'string' values.
 
         console.log(OTP);
+        //schema only saves number and otp
         const otp = new Otp({
             number: number,
             name: validationResult.name,
@@ -40,7 +45,18 @@ const signUp = async (req, res, next) => {
         otp.otp = await bcrypt.hash(otp.otp, salt);
         const result = await otp.save();
         console.log(result);
-        return res.status(200).json({ message: "Otp sent successfully ", result });
+
+        const data = {
+            number: number,
+            name: validationResult.name,
+            place: validationResult.place
+        }
+
+        const tempToken = await signTempAccessToken(data);
+        res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
+        
+
+        return res.status(200).json({ message: "Otp sent successfully", result });
         //remove result from response
     }
     catch (error) {
@@ -48,37 +64,33 @@ const signUp = async (req, res, next) => {
         next(error);
     }
 };
+
 //Below for user registration verification.
 const signUp_verifyOtp = async (req, res, next) => {
     try {
+        const cookies = req.cookies;
+        const tempToken = cookies.tempToken;
+        
+        const decoded = await verifyTempToken(tempToken);
+
         let otpValidationResult = await signUpOtpVerifySchema.validateAsync(req.body);
         console.log('otpValidationResult:', otpValidationResult);
 
-        const number = `${otpValidationResult.code}${otpValidationResult.number}`;
-        
-        const validatedData = {
-            number: number,
-            name: otpValidationResult.name,
-            place : otpValidationResult.place,
-            otp: otpValidationResult.otp
-        }
-
-        const otpHolder = await Otp.find({ number: number });
+        const otpHolder = await Otp.find({ number: decoded.number });
         if (otpHolder.length === 0) {
             return res.status(400).json({ message: 'OTP not generated' });
         }
         const rightOtpFind = otpHolder[otpHolder.length - 1];
         console.log('rightOtpFind:', rightOtpFind);
-        const validUser = await bcrypt.compare(validatedData.otp, rightOtpFind.otp);
+        const validUser = await bcrypt.compare(otpValidationResult.otp, rightOtpFind.otp);
         console.log('validUser:', validUser);
 
-        if (rightOtpFind.number == number && validUser) {
-            let user = _.pick(validatedData, ["number", "name", "place"]);
-            user = JSON.stringify(user);
+        if (rightOtpFind.number == decoded.number && validUser) {
+            let user = _.pick(decoded, ["number", "name", "place"]);
+            console.log('user:', user);
             const accessToken = await signAccessToken(user);
             const refreshToken = await signRefreshToken(user);
 
-            user = JSON.parse(user);
             user = new User(user);
             const result = await user.save();
 
@@ -86,7 +98,9 @@ const signUp_verifyOtp = async (req, res, next) => {
                 number: rightOtpFind.number
             });
 
-            //res.header('Authorization', 'Bearer '+ accessToken);    // set access-token in header
+            //cear temp-token generated previously
+            res.clearCookie('tempToken');
+
             // save refresh token in cookie with httpsOnly property.
             res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
             res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
@@ -107,7 +121,6 @@ const signUp_verifyOtp = async (req, res, next) => {
         if (error.isJoi === true) error.status = 422;
         next(error);
     }
-
 };
 //checking wether user exists or not.
 //otp generation and sending otp to user's mobile number.
@@ -143,6 +156,14 @@ const signIn = async (req, res, next) => {
         otp.otp = await bcrypt.hash(otp.otp, salt);
         const result = await otp.save();
         console.log(result);
+
+        const data = {
+            number: number,
+        }
+        const tempToken = await signTempAccessToken(data);
+        res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
+        //temp token is used to store data securely and pass to next page. 
+
         return res.status(200).json({ message: "Otp sent successfully " });
 
     }
@@ -156,29 +177,34 @@ const signIn = async (req, res, next) => {
 //verifying otp and login.
 const signIn_verifyOtp = async (req, res, next) => {
     try {
-        const validationResult = await signInOtpVerifySchema.validateAsync(req.body);
-        const number = `${validationResult.code}${validationResult.number}`;
+        const cookies = req.cookies;
+        const tempToken = cookies.tempToken;
+        const decoded = await verifyTempToken(tempToken);
 
-        const otpHolder = await Otp.find({ number: number });
-        if (otpHolder.length === 0) {
-            throw createError.NotFound('OTP not generated');
-            //return res.status(400).send('Invalid OTP');
-        }
+        const validationResult = await signInOtpVerifySchema.validateAsync(req.body);
+
+        const otpHolder = await Otp.find({ number: decoded.number });
+            if (otpHolder.length === 0) {
+                throw createError.NotFound('OTP not generated');
+                //return res.status(400).send('Invalid OTP');
+            }
         const rightOtpFind = otpHolder[otpHolder.length - 1];
         console.log("rightOtpFind:",rightOtpFind);
         const validUser = await bcrypt.compare(validationResult.otp, rightOtpFind.otp);
+        console.log("validUser:",validUser);
+        console.log("rightOtpFind.number:",rightOtpFind.number);
+        console.log("decoded.number:",decoded.number);
 
-        if (rightOtpFind.number === number && validUser) {
+        if (rightOtpFind.number == decoded.number && validUser) {
 
             // jwt_verify here
 
             //fetch 'name' from 'number' from database
-            const userData = await User.findOne({number: number});
+            const userData = await User.findOne({number: decoded.number});
             console.log('userData:', userData);
             let user = _.pick(userData, ['number', 'name', 'place']);
-            user = JSON.stringify(user);
-            //added name, number and place to access-token.
-            //remove _id: key-value from access-token
+            // user = JSON.stringify(user);
+            //added name, number and place to access-token. 
             console.log('user:', user);
             
 
@@ -238,6 +264,7 @@ const logout = async(req, res, next) =>{
     const cookies = req.cookies;
     const accessToken = cookies.accessToken;
     const refreshToken = cookies.refreshToken;
+
     if(!accessToken && !refreshToken){
         res.json({message:"Already Logged-out."})
         return

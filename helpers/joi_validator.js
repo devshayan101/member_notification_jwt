@@ -14,10 +14,10 @@ const signUpOtpSchema = Joi.object({
 
 //signup-otp verification
 const signUpOtpVerifySchema = Joi.object({
-    code:Joi.number().required(),
-    name: Joi.string().lowercase().alphanum().required(),
-    number: Joi.number().required(),
-    place: Joi.string().lowercase().alphanum().required(),
+    // code:Joi.number().required(),
+    // name: Joi.string().lowercase().alphanum().required(),
+    // number: Joi.number().required(),
+    // place: Joi.string().lowercase().alphanum().required(),
     otp: Joi.string().lowercase().alphanum().required() // data and hash must be strings. This cant be number only string for hashing.
 });
 
@@ -30,8 +30,6 @@ const signInOtpSchema = Joi.object({
 
 //signin-otp verification
 const signInOtpVerifySchema = Joi.object({
-    code:Joi.number().required(),
-    number: Joi.number().required(),
     otp: Joi.string().lowercase().alphanum().required()
 })
 

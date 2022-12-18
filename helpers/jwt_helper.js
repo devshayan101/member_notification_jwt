@@ -3,6 +3,29 @@ const createError = require('http-errors');
 const { resolve } = require('uri-js');
 const { string } = require('joi');
 
+const signTempAccessToken = (data) => {
+    return new Promise((resolve, reject) =>{
+        const payload = {
+            name: data.name,
+            number: data.number,
+            place: data.place
+        };
+        const options = {
+            expiresIn: '5m',
+            audience: 'NGO',
+            subject: `temp-token`
+        };
+        JWT.sign(payload, process.env.JWT_TEMP_SECRET, options, (err, token) =>{
+            if(err){
+                reject(createError(500, err));
+            }
+            else{
+                resolve(token);
+            }
+        })
+    });
+}
+
 const signAccessToken = (user) => {
     return new Promise((resolve, reject) => {
         const payload = {
@@ -10,14 +33,13 @@ const signAccessToken = (user) => {
             number : user.number,
             place: user.place
         };
-        const JWT_SECRET = process.env.JWT_SECRET_KEY;
         const options = {
             expiresIn: '10m', //10mins 
             //issuer: 'https://www.google.com',
-            audience: 'dash',
-            subject: user
+            audience: 'NGO',
+            subject: `token-generation`
         };
-        JWT.sign(payload, JWT_SECRET, options, (err, token) => {
+        JWT.sign(payload, process.env.JWT_SECRET_KEY, options, (err, token) => {
             if (err) {
                 reject(createError(500, err));
             } else {
@@ -50,17 +72,16 @@ const verifyAccessToken = (req, res, next) => {
 const signRefreshToken = (user) => {
     return new Promise((resolve, reject) => {
         const payload = {
-            // name: user.name,
+            name: user.name,
             number: user.number,
-            //place: user.place
+            place: user.place
         };
-        const JWT_SECRET = process.env.JWT_SECRET_KEY_REFRESH;
         const options = {
             expiresIn: '1d',
             //issuer: 'https://www.google.com',
-            audience: user.toString()
+            audience: `NGO`
         };
-        JWT.sign(payload, JWT_SECRET, options, (err, token) => {
+        JWT.sign(payload, process.env.JWT_SECRET_KEY_REFRESH, options, (err, token) => {
             if (err) {
                 reject(createError.InternalServerError());
             } else {
@@ -74,7 +95,18 @@ const verifyRefreshToken = (refreshToken) => {
     return new Promise((resolve, reject) => {
         JWT.verify(refreshToken, process.env.JWT_SECRET_KEY_REFRESH, (err, payload) => {
             if (err) return reject(createError.Unauthorized())
-            const user = payload.aud //audience of payload
+            const user = payload //audience of payload
+            //blacklist refresh token
+            resolve(user)
+        })
+    })
+}
+
+const verifyTempToken = (tempToken) => {
+    return new Promise((resolve, reject) => {
+        JWT.verify(tempToken, process.env.JWT_TEMP_SECRET, (err, payload) => {
+            if (err) return reject(createError.Unauthorized())
+            const user = payload//audience of payload
             //blacklist refresh token
             resolve(user)
         })
@@ -85,5 +117,7 @@ module.exports = {
     signAccessToken,
     verifyAccessToken,
     signRefreshToken,
-    verifyRefreshToken
+    verifyRefreshToken,
+    signTempAccessToken,
+    verifyTempToken
 }

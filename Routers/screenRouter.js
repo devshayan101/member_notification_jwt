@@ -3,7 +3,6 @@ const {memberDonationDataSavePost} = require('../Controllers/memberDonateControl
 const {routeAuth} = require('../helpers/routeAuth')
 
 router.route('/membership-donation').post(routeAuth, memberDonationDataSavePost);
-router.route('/test').get(memberDonationDataSavePost);
 // router.route('/profile').get(routeAuth, 'transactionHistory');
 // router.route('/home').get('moto+causes')
 
