@@ -29,6 +29,7 @@
     "otp-generator": "^4.0.0",
     "redis": "^4.0.1",
     "sharp": "^0.29.3",
+    "twilio": "^3.84.1",
     "uri-js": "^4.4.1"
   },
   "devDependencies": {

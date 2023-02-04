@@ -1,6 +1,5 @@
 const bcrypt = require('bcrypt');
 const _ = require('lodash');
-const axios = require('axios');
 const otpGenerator = require('otp-generator');
 const createError = require('http-errors');
 const { User } = require('../Models/userModel');
@@ -8,9 +7,8 @@ const { Otp } = require('../Models/otpModel');
 const { signUpOtpSchema, signUpOtpVerifySchema, signInOtpSchema, signInOtpVerifySchema } = require('../helpers/joi_validator.js');
 const { signAccessToken, signRefreshToken, verifyRefreshToken, signTempAccessToken, verifyTempToken } = require('../helpers/jwt_helper');
 const jwt = require('jsonwebtoken');
-
-    // res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
-    //add secure:true in option for production server.
+const {sms} = require('../helpers/sms');
+    
 
 
 const signUp = async (req, res, next) => {
@@ -35,6 +33,9 @@ const signUp = async (req, res, next) => {
 
         console.log(OTP);
         //schema only saves number and otp
+
+        sms(number, OTP);
+
         const otp = new Otp({
             number: number,
             name: validationResult.name,
@@ -53,10 +54,13 @@ const signUp = async (req, res, next) => {
         }
 
         const tempToken = await signTempAccessToken(data);
-        res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
+        res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 5*60*1000});
         
 
-        return res.status(200).json({ message: "Otp sent successfully", result });
+        return res.status(200).json({ "message": "Otp sent successfully", 
+                                      "result": result,
+                                      "tempToken": tempToken 
+                                    });
         //remove result from response
     }
     catch (error) {
@@ -70,7 +74,7 @@ const signUp_verifyOtp = async (req, res, next) => {
     try {
         const cookies = req.cookies;
         const tempToken = cookies.tempToken;
-        
+        console.log("tempToken:", tempToken);
         const decoded = await verifyTempToken(tempToken);
 
         let otpValidationResult = await signUpOtpVerifySchema.validateAsync(req.body);
@@ -147,6 +151,10 @@ const signIn = async (req, res, next) => {
         const OTP = otpGenerator.generate(6, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false });
         console.log(OTP);
 
+        await sms(number, OTP);
+
+        //here send OTP through messaging system. 
+
         const otp = new Otp({
             number: number,
             otp: OTP
@@ -161,10 +169,11 @@ const signIn = async (req, res, next) => {
             number: number,
         }
         const tempToken = await signTempAccessToken(data);
-        res.cookie('tempToken', tempToken, {httpOnly: true, sameSite: 'None', maxAge: 5*60*1000});
+        res.cookie('tempToken', tempToken, {httpOnly: true, maxAge: 5*60*1000});
+
         //temp token is used to store data securely and pass to next page. 
 
-        return res.status(200).json({ message: "Otp sent successfully " });
+        return res.status(200).json({ message: "Otp sent successfully ", tempToken: tempToken });
 
     }
     catch (error) {
@@ -184,13 +193,19 @@ const signIn_verifyOtp = async (req, res, next) => {
         const validationResult = await signInOtpVerifySchema.validateAsync(req.body);
 
         const otpHolder = await Otp.find({ number: decoded.number });
+
             if (otpHolder.length === 0) {
                 throw createError.NotFound('OTP not generated');
                 //return res.status(400).send('Invalid OTP');
             }
+
         const rightOtpFind = otpHolder[otpHolder.length - 1];
+
         console.log("rightOtpFind:",rightOtpFind);
+
         const validUser = await bcrypt.compare(validationResult.otp, rightOtpFind.otp);
+
+
         console.log("validUser:",validUser);
         console.log("rightOtpFind.number:",rightOtpFind.number);
         console.log("decoded.number:",decoded.number);
@@ -212,18 +227,18 @@ const signIn_verifyOtp = async (req, res, next) => {
             const accessToken = await signAccessToken(user);
             const refreshToken = await signRefreshToken(user);
             //const result = await user.save(); //data for logged in user//change collection name
-            const OTPDelete = await Otp.deleteMany({
+            await Otp.deleteMany({
                 number: rightOtpFind.number
             });
-            //res.header('Authorization', 'Bearer '+ accessToken);    // set access-token in header
-            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000}); 
-            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
+            res.setHeader('Authorization', 'Bearer '+ accessToken);    // set access-token in header
+            // res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 10*60*1000}); 
+            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 24*60*60*1000});
 
             return res.status(200).json({
                 message: "login Successfull!",
                 accessToken,
-                refreshToken,
-                userdata: user
+                userdata: user,
+                roles: 2001
             });
         } else {
             return res.status(400).json({ message: "Your OTP is wrong!" })
@@ -275,19 +290,6 @@ const logout = async(req, res, next) =>{
 
     res.json({message: "Logout successful."})
 }
-
-//Note: verifyAccessToken function can handle route protection.
-
-// const protectedRoute = async (req, res, next) => {
-
-//     // let token = req.headers['x-access-token'] || req.headers['authorization'];
-//     //     if(token.startwith( ('Bearer '))){
-//     //         token = token. splice(7, token. length);
-//     //     }
-
-//     res.status(200).json({ message: "This is protected route" });
-// }
-
 
 module.exports = {
     signUp,

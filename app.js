@@ -12,7 +12,8 @@ const cors = require('cors');
 // CORS configuration
 const corsOptions = {
     origin: 'http://localhost:3000',
-    credentials: true
+    credentials: true,
+    exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }
 
 app.use(cors(corsOptions));
@@ -28,7 +29,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use("/api/users", userRouter);
+app.use("/auth", userRouter);
 app.use("/screens", screenRouter);
 
 // app.get("/", (req, res, next) => {
