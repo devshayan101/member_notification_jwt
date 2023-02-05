@@ -59,7 +59,8 @@ const signUp = async (req, res, next) => {
 
         return res.status(200).json({ "message": "Otp sent successfully", 
                                       "result": result,
-                                      "tempToken": tempToken 
+                                      "tempToken": tempToken,
+                                       data 
                                     });
         //remove result from response
     }
@@ -105,6 +106,7 @@ const signUp_verifyOtp = async (req, res, next) => {
             //cear temp-token generated previously
             res.clearCookie('tempToken');
 
+            res.setHeader('Authorization', 'Bearer '+ accessToken);    // set access-token in header
             // save refresh token in cookie with httpsOnly property.
             res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 10*60*1000});
             res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 24*60*60*1000});
@@ -113,7 +115,7 @@ const signUp_verifyOtp = async (req, res, next) => {
                 message: "User Registration Successfull!",
                 token: accessToken,
                 refreshToken: refreshToken,
-                user: result
+                user
             });
         } else {
             const error = new Error("Wrong OTP Entered");
@@ -151,7 +153,7 @@ const signIn = async (req, res, next) => {
         const OTP = otpGenerator.generate(6, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false });
         console.log(OTP);
 
-        await sms(number, OTP);
+        sms(number, OTP);
 
         //here send OTP through messaging system. 
 
@@ -231,7 +233,7 @@ const signIn_verifyOtp = async (req, res, next) => {
                 number: rightOtpFind.number
             });
             res.setHeader('Authorization', 'Bearer '+ accessToken);    // set access-token in header
-            // res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 10*60*1000}); 
+            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 10*60*1000}); 
             res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 24*60*60*1000});
 
             return res.status(200).json({
