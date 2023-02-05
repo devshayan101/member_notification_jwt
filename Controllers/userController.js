@@ -106,8 +106,8 @@ const signUp_verifyOtp = async (req, res, next) => {
             res.clearCookie('tempToken');
 
             // save refresh token in cookie with httpsOnly property.
-            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', maxAge: 10*60*1000});
-            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', maxAge: 24*60*60*1000});
+            res.cookie('accessToken', accessToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 10*60*1000});
+            res.cookie('refreshToken', refreshToken, {httpOnly: true, sameSite: 'None', secure:true, maxAge: 24*60*60*1000});
 
             return res.status(200).json({
                 message: "User Registration Successfull!",
@@ -169,7 +169,7 @@ const signIn = async (req, res, next) => {
             number: number,
         }
         const tempToken = await signTempAccessToken(data);
-        res.cookie('tempToken', tempToken, {httpOnly: true, maxAge: 5*60*1000});
+        res.cookie('tempToken', tempToken, {httpOnly: true,sameSite: 'None', secure:true, maxAge: 5*60*1000});
 
         //temp token is used to store data securely and pass to next page. 
 
