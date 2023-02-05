@@ -11,8 +11,8 @@ const cors = require('cors');
 
 // CORS configuration
 const corsOptions = {
-    // origin: 'https://member.jamiamakkia.com',
-    origin: 'http://localhost:3000',
+    origin: 'https://member.jamiamakkia.com',
+    // origin: 'http://localhost:3000',
     credentials: true,
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }
