@@ -11,7 +11,7 @@ const cors = require('cors');
 
 // CORS configuration
 const corsOptions = {
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000','https://kmembership.onrender.com/'],
     credentials: true,
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }
