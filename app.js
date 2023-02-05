@@ -11,7 +11,7 @@ const cors = require('cors');
 
 // CORS configuration
 const corsOptions = {
-    origin: 'https://kmembership.onrender.com',
+    origin: 'https://member.jamiamakkia.com',
     credentials: true,
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }
